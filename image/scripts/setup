@@ -1,0 +1,3 @@
+#!/bin/sh
+
+curl -sLS https://get.hashi-up.dev | sh
