@@ -4,4 +4,5 @@ ansible --version
 
 cluster1_ip=$(dig cluster1.marms +short)
 
-hashi-up consul install --ssh-target-addr $cluster1_ip --server
+hashi-up consul install --ssh-target-addr $cluster1_ip --advertise-addr $cluster1_ip --ssk-target-key ~/.ssh/id_rsa --server --http-addr 0.0.0.0 --connect --acl
+hashi-up nomad install --ssh-target-addr $cluster1_ip --ssk-target-key ~/.ssh/id_rsa --server --client
