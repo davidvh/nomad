@@ -50,6 +50,7 @@
     --ssh-target-key ~/.ssh/id_rsa
     --http-addr 0.0.0.0
     --retry-join {{ compute_ip }}
+    --bootstrap-expect {{ ansible_play_batch | length }}
     --server --connect --acl
   delegate_to: localhost
 
@@ -60,7 +61,7 @@
 
 - name: Initialize consul ACL
   shell:
-    cmd: mkdir /mnt/gluster/gv0/consul/;consul acl bootstrap > /mnt/gluster/gv0/consul/global.token
+    cmd: consul acl bootstrap > /mnt/gluster/gv0/consul/global.token
     creates: /mnt/gluster/gv0/consul/global.token
 
 - name: Install nomad
