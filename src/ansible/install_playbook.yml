@@ -12,3 +12,7 @@
     apt:
       upgrade: dist
       autoremove: yes
+
+- hosts: all
+  roles:
+    - compute
