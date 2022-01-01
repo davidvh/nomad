@@ -59,9 +59,9 @@
     state: directory
 
 - name: Initialize consul ACL
-  command: >-
-    mkdir /mnt/gluster/gv0/consul/;consul acl bootstrap > /mnt/gluster/gv0/consul/global.token
-  creates: /mnt/gluster/gv0/consul/global.token
+  shell:
+    cmd: mkdir /mnt/gluster/gv0/consul/;consul acl bootstrap > /mnt/gluster/gv0/consul/global.token
+    creates: /mnt/gluster/gv0/consul/global.token
 
 - name: Install nomad
   command: >-
