@@ -1,0 +1,9 @@
+#!/bin/bash
+
+if [[ ! -f ~/.ssh/id_rsa ]]
+then
+    ssh-keygen -t rsa
+fi
+
+pushd `dirname $0`/../ansible
+ansible-playbook update_authorized_keys_playbook.yml -i inventory/hosts.ini --ask-pass --ask-become-pass -u $1

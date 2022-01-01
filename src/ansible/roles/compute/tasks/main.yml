@@ -1,0 +1,33 @@
+---
+
+- name: Install package requirements
+  apt:
+    name:
+      - python3-pip
+  when: ansible_distribution in ['Ubuntu', 'Debian']
+
+- name: Install package requirements
+  dnf:
+    name:
+      - python3-pip
+    state: latest
+  when: ansible_distribution in ['CentOS', 'Red Hat Enterprise Linux']
+
+- name: Install consul
+  command: >-
+    hashi-up consul install
+    --ssh-target-addr {{ inventory_hostname }}
+    --advertise-addr {{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}
+    --ssh-target-key ~/.ssh/id_rsa
+    --http-addr 0.0.0.0
+    --retry-join {{ compute_ip }}
+    --server --connect --acl
+  delegate_to: localhost
+
+- name: Install nomad
+  command: >-
+    hashi-up nomad install
+    --ssh-target-addr {{ inventory_hostname }}
+    --ssh-target-key ~/.ssh/id_rsa
+    --server --client
+  delegate_to: localhost

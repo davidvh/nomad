@@ -1,0 +1,14 @@
+- name: Regular maintenance
+  hosts: all
+  tasks:
+  - name: Install common packages
+    apt:
+      name:
+      - cockpit
+      - cockpit-pcp
+      - open-iscsi
+      - docker.io
+  - name: Upgrade the OS (apt-get dist-upgrade)
+    apt:
+      upgrade: dist
+      autoremove: yes
