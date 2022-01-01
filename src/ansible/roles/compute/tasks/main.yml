@@ -64,6 +64,11 @@
     cmd: consul acl bootstrap > /mnt/gluster/gv0/consul/global.token
     creates: /mnt/gluster/gv0/consul/global.token
 
+- name: Read global.token
+  shell:
+    cmd: cat /mnt/gluster/gv0/consul/global.token | grep SecretID | awk '{print $2}'
+  register: consul_global_token
+
 - name: Install nomad
   command: >-
     hashi-up nomad install
@@ -71,3 +76,19 @@
     --ssh-target-key ~/.ssh/id_rsa
     --server --client
   delegate_to: localhost
+
+# TODO Create policy and token for nomad: https://www.consul.io/commands/acl/token
+- name: Configure nomad to connect to consul
+  copy:
+    dest: "/etc/nomad.d/config/consul_acl.hcl"
+    content: |
+      consul {
+        token = "{{ consul_global_token.stdout }}"
+      }
+  register: nomad_acl_token
+
+- name: Restart nomad
+  ansible.builtin.systemd:
+    name: nomad
+    state: restarted
+  when: nomad_acl_token.changed
