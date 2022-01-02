@@ -74,6 +74,7 @@
     hashi-up nomad install
     --ssh-target-addr {{ inventory_hostname }}
     --ssh-target-key ~/.ssh/id_rsa
+    --bootstrap-expect {{ ansible_play_batch | length }}
     --server --client
   delegate_to: localhost
 
