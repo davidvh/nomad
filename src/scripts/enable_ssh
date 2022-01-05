@@ -6,5 +6,5 @@ then
     cp ~/.ssh/id_rsa.pub ~/.ssh/authorized_keys
 fi
 
-pushd `dirname $0`/../ansible
-ansible-playbook update_authorized_keys_playbook.yml -i inventory/hosts.ini --ask-pass --ask-become-pass -u $1
+rsync -r /root/.ssh/ $1@$2:~/.ssh/
+ssh -t $1@$2 sudo rsync -r /home/$1/.ssh/ /root/.ssh/

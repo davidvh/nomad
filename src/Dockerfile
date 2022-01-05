@@ -1,6 +1,6 @@
 FROM debian
 
-RUN apt-get update && apt-get install -y openssh-client ansible git curl dnsutils python3-pip sshpass
+RUN apt-get update && apt-get install -y openssh-client ansible git curl dnsutils python3-pip sshpass rsync
 
 RUN ansible-galaxy collection install gluster.gluster
 
