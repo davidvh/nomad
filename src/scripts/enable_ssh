@@ -3,7 +3,7 @@
 if [[ ! -f ~/.ssh/id_rsa ]]
 then
     ssh-keygen -t rsa
-    ssh-copy-id -i ~/.ssh/id_rsa.pub root@localhost
+    cp ~/.ssh/id_rsa.pub ~/.ssh/authorized_keys
 fi
 
 pushd `dirname $0`/../ansible
