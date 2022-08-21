@@ -4,80 +4,64 @@
   apt:
     name:
       - python3-pip
-      - glusterfs-server
-      - glusterfs-client
 
-- name: Enable glusterd
-  ansible.builtin.systemd:
-    name: glusterd
-    state: started
-    enabled: yes
+- name: Install Hashi-Up
+  copy:
+    src: /usr/local/bin/hashi-up
+    dest: /usr/local/bin/hashi-up
+    mode: u+rwx
 
-- name: Create a trusted storage pool
-  gluster.gluster.gluster_peer:
-    state: present
-    nodes: "{{ ansible_play_batch }}"
-
-- name: create gluster volume
-  gluster.gluster.gluster_volume:
-    state: present
-    name: gv0
-    bricks: /data/disk1/gv0
-    # rebalance: yes
-    # replicas: 1
-    cluster:
-      - cluster1.marms
-      - cluster4.marms
-  run_once: true
-
-- name: start gluster volume
-  gluster.gluster.gluster_volume:
-    state: started
-    name: gv0
-  run_once: true
-
-- name: mount gluster volume
-  ansible.posix.mount:
-    path: /mnt/gluster/gv0
-    src: 127.0.0.1:/gv0
-    fstype: glusterfs
-    state: mounted
+- name: Create storage for consul ACLs
+  file:
+    path: /etc/hashicorp/
+    state: directory
 
 - name: Install consul
   command: >-
     hashi-up consul install
-    --ssh-target-addr {{ inventory_hostname }}
     --advertise-addr {{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}
-    --ssh-target-key ~/.ssh/id_rsa
+    --local
     --http-addr 0.0.0.0
     --retry-join {{ compute_ip }}
     --bootstrap-expect {{ ansible_play_batch | length }}
     --server --connect --acl
-  delegate_to: localhost
-
-- name: Create storage for consul ACLs
-  file:
-    path: /mnt/gluster/gv0/consul
-    state: directory
 
 - name: Initialize consul ACL
   shell:
-    cmd: consul acl bootstrap > /mnt/gluster/gv0/consul/global.token
-    creates: /mnt/gluster/gv0/consul/global.token
+    cmd: consul acl bootstrap > /etc/hashicorp/consul.token
+    creates: /etc/hashicorp/consul.token
+  when: inventory_hostname == compute_ip
 
-- name: Read global.token
+- name: Copy consul ACL
+  fetch:
+    src: "/etc/hashicorp/consul.token"
+    dest: "/etc/hashicorp/consul.token"
+    flat: yes
+  when: inventory_hostname == compute_ip
+
+- name: Share consul ACL
+  copy:
+    src: "/etc/hashicorp/consul.token"
+    dest: "/etc/hashicorp/consul.token"
+
+- name: Read consul ACL
   shell:
-    cmd: cat /mnt/gluster/gv0/consul/global.token | grep SecretID | awk '{print $2}'
+    cmd: cat /etc/hashicorp/consul.token | grep SecretID | awk '{print $2}'
   register: consul_global_token
+  when: inventory_hostname == compute_ip
+
+- name: Install vault
+  command: >-
+    hashi-up vault install
+    --local
+    --consul-token {{ consul_global_token.stdout }}
 
 - name: Install nomad
   command: >-
     hashi-up nomad install
-    --ssh-target-addr {{ inventory_hostname }}
-    --ssh-target-key ~/.ssh/id_rsa
+    --local
     --bootstrap-expect {{ ansible_play_batch | length }}
-    --server --client
-  delegate_to: localhost
+    --server --client --acl
 
 # TODO Create policy and token for nomad: https://www.consul.io/commands/acl/token
 - name: Configure nomad to connect to consul
@@ -94,3 +78,21 @@
     name: nomad
     state: restarted
   when: nomad_acl_token.changed
+
+- name: Initialize nomad ACL
+  shell:
+    cmd: nomad acl bootstrap > /etc/hashicorp/nomad.token
+    creates: /etc/hashicorp/nomad.token
+  when: inventory_hostname == compute_ip
+
+- name: Copy nomad ACL
+  fetch:
+    src: "/etc/hashicorp/nomad.token"
+    dest: "/etc/hashicorp/nomad.token"
+    flat: yes
+  when: inventory_hostname == compute_ip
+
+- name: Share nomad ACL
+  copy:
+    src: "/etc/hashicorp/nomad.token"
+    dest: "/etc/hashicorp/nomad.token"
