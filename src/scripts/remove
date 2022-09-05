@@ -2,6 +2,10 @@
 
 # ssh -t root@$1 consul leave
 ssh -t root@$1 hashi-up nomad uninstall --local
+ssh -t root@$1 hashi-up vault uninstall --local
 ssh -t root@$1 hashi-up consul uninstall --local
 ssh -t root@$1 rm /etc/hashicorp/*
+ssh -t root@$1 rm /opt/nomad/*
+ssh -t root@$1 rm /opt/vault/*
+ssh -t root@$1 rm /opt/consul/*
 ssh -t root@$1 rm /usr/local/bin/hashi-up

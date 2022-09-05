@@ -96,3 +96,16 @@
   copy:
     src: "/etc/hashicorp/nomad.token"
     dest: "/etc/hashicorp/nomad.token"
+
+# TODO: Split to separate role
+
+- name: Read nomad ACL
+  shell:
+    cmd: cat /etc/hashicorp/nomad.token | grep 'Secret ID' | awk '{print $4 }'
+  register: nomad_global_token
+  when: inventory_hostname == compute_ip
+
+- name: Test Nomad creation
+  shell:
+    cmd: nomad job run -address=http://{{ compute_ip }}:4646 -token {{ nomad_global_token.stdout }} /nomad/example.hcl
+  delegate_to: localhost
