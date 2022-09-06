@@ -6,182 +6,22 @@
       - python3-pip
       - keepalived
 
-- name: Install Hashi-Up
-  copy:
-    src: /usr/local/bin/hashi-up
-    dest: /usr/local/bin/hashi-up
-    mode: u+rwx
-
-- name: Create storage for consul ACLs
-  file:
-    path: /etc/hashicorp/
-    state: directory
-
-- name: Install consul
-  command: >-
-    hashi-up consul install
-    --advertise-addr {{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}
-    --local
-    --http-addr 0.0.0.0
-    --retry-join {{ compute_ip }}
-    --bootstrap-expect {{ ansible_play_batch | length }}
-    --server --connect --acl
-
-- name: Initialize consul ACL
-  shell:
-    cmd: consul acl bootstrap > /etc/hashicorp/consul.token.tmp && mv /etc/hashicorp/consul.token.tmp /etc/hashicorp/consul.token
-    creates: /etc/hashicorp/consul.token
-  when: inventory_hostname == compute_ip
-  register: acl_bootstrap
-  until: acl_bootstrap.rc == 0
-  retries: 6
-  delay: 10
-
-- name: Copy consul ACL
-  fetch:
-    src: "/etc/hashicorp/consul.token"
-    dest: "/etc/hashicorp/consul.token"
-    flat: yes
-  when: inventory_hostname == compute_ip
-
-- name: Share consul ACL
-  copy:
-    src: "/etc/hashicorp/consul.token"
-    dest: "/etc/hashicorp/consul.token"
-
-- name: Read consul ACL
-  shell:
-    cmd: cat /etc/hashicorp/consul.token | grep SecretID | awk '{print $2}'
-  register: consul_global_token
-
-- name: Install vault
-  command: >-
-    hashi-up vault install
-    --local
-    --consul-token {{ consul_global_token.stdout }}
-
-- name: Install nomad
-  command: >-
-    hashi-up nomad install
-    --local
-    --bootstrap-expect {{ ansible_play_batch | length }}
-    --server --client --acl
-
-# TODO Create policy and token for nomad: https://www.consul.io/commands/acl/token
-- name: Configure nomad to connect to consul
-  copy:
-    dest: "/etc/nomad.d/config/consul_acl.hcl"
-    content: |
-      consul {
-        token = "{{ consul_global_token.stdout }}"
-      }
-  register: nomad_acl_token
-
-- name: Restart nomad
-  ansible.builtin.systemd:
-    name: nomad
-    state: restarted
-  when: nomad_acl_token.changed
-
-- name: Initialize nomad ACL
-  shell:
-    cmd: nomad acl bootstrap > /etc/hashicorp/nomad.token.tmp && mv /etc/hashicorp/nomad.token.tmp /etc/hashicorp/nomad.token
-    creates: /etc/hashicorp/nomad.token
-  when: inventory_hostname == compute_ip
-  register: acl_bootstrap
-  until: acl_bootstrap.rc == 0
-  retries: 6
-  delay: 10
-
-- name: Copy nomad ACL
-  fetch:
-    src: "/etc/hashicorp/nomad.token"
-    dest: "/etc/hashicorp/nomad.token"
-    flat: yes
-  when: inventory_hostname == compute_ip
-
-- name: Share nomad ACL
-  copy:
-    src: "/etc/hashicorp/nomad.token"
-    dest: "/etc/hashicorp/nomad.token"
-
 # TODO: Split to separate file
+- name: Load split files
+  include_tasks: "{{ item }}"
+  with_items:
+    - nomad.yaml
+    - keepalived.yaml
 
-- name: Get default network interface
-  shell:
-    cmd: ip route | grep 'default via' | awk '{print $5}'
-  register: default_net
-
-- name: Check for keepalived config
-  stat:
-    path: /etc/keepalived/keepalived.conf
-  register: keepalived_config
-
-- name: Generate random keepalived password
-  shell:
-    cmd: cat /proc/sys/kernel/random/uuid | awk '{printf "auth_pass %s", $1}' > /etc/keepalived/keepalived.conf
-  when: keepalived_config.stat.exists == false
-
-- name: Read existing keepalived password
-  shell:
-    cmd: cat /etc/keepalived/keepalived.conf | grep auth_pass | awk '{print $2}'
-  register: keepalived_pass
-
-- name: Create keepalived configuration
-  copy:
-    dest: "/etc/keepalived/keepalived.conf"
-    content: |
-      global_defs {
-        notification_email {
-          sysadmin@home.lab
-        }
-        notification_email_from edith01@home.lab
-        smtp_server localhost
-        smtp_connect_timeout 30
-      }
-
-      vrrp_instance VI_1 {
-          {% if inventory_hostname == compute_ip -%}
-          state MASTER
-          {% else -%}
-          state BACKUP
-          {% endif %}
-          interface {{ default_net.stdout }}
-          virtual_router_id {{ ansible_play_batch.index(inventory_hostname) + 1 }}
-          priority {{ ansible_play_batch.index(inventory_hostname) + 1 }}
-          advert_int 1
-          authentication {
-              auth_type PASS
-              auth_pass {{ keepalived_pass.stdout }}
-          }
-          virtual_ipaddress {
-              {{ load_balance_ip }}
-          }
-      }
-  register: keepalived_config_content
-
-- name: Enable keepalived
-  ansible.builtin.systemd:
-    name: keepalived
-    state: started
-    enabled: yes
-  when: keepalived_config_content.changed
-
-- name: Restart keepalived
-  ansible.builtin.systemd:
-    name: keepalived
-    state: restarted
-  when: keepalived_config_content.changed
-
-# TODO: Split to separate role
-
-- name: Read nomad ACL
+- name: Read Nomad ACL
   shell:
     cmd: cat /etc/hashicorp/nomad.token | grep 'Secret ID' | awk '{print $4 }'
   register: nomad_global_token
 
-- name: Test Nomad creation
+- name: Start Nomad jobs
   shell:
-    cmd: nomad job run -address=http://{{ compute_ip }}:4646 -token {{ nomad_global_token.stdout }} /nomad/example.hcl
+    cmd: nomad job run -address=http://{{ compute_ip }}:4646 -token {{ nomad_global_token.stdout }} {{ item }}
   when: inventory_hostname == compute_ip
   delegate_to: localhost
+  with_items:
+    - /nomad/example.hcl
