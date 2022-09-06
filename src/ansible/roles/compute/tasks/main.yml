@@ -28,9 +28,13 @@
 
 - name: Initialize consul ACL
   shell:
-    cmd: consul acl bootstrap > /etc/hashicorp/consul.token
+    cmd: consul acl bootstrap > /etc/hashicorp/consul.token.tmp && mv /etc/hashicorp/consul.token.tmp /etc/hashicorp/consul.token
     creates: /etc/hashicorp/consul.token
   when: inventory_hostname == compute_ip
+  register: acl_bootstrap
+  until: acl_bootstrap.rc == 0
+  retries: 6
+  delay: 10
 
 - name: Copy consul ACL
   fetch:
@@ -48,7 +52,6 @@
   shell:
     cmd: cat /etc/hashicorp/consul.token | grep SecretID | awk '{print $2}'
   register: consul_global_token
-  when: inventory_hostname == compute_ip
 
 - name: Install vault
   command: >-
@@ -81,9 +84,13 @@
 
 - name: Initialize nomad ACL
   shell:
-    cmd: nomad acl bootstrap > /etc/hashicorp/nomad.token
+    cmd: nomad acl bootstrap > /etc/hashicorp/nomad.token.tmp && mv /etc/hashicorp/nomad.token.tmp /etc/hashicorp/nomad.token
     creates: /etc/hashicorp/nomad.token
   when: inventory_hostname == compute_ip
+  register: acl_bootstrap
+  until: acl_bootstrap.rc == 0
+  retries: 6
+  delay: 10
 
 - name: Copy nomad ACL
   fetch:
@@ -103,9 +110,9 @@
   shell:
     cmd: cat /etc/hashicorp/nomad.token | grep 'Secret ID' | awk '{print $4 }'
   register: nomad_global_token
-  when: inventory_hostname == compute_ip
 
 - name: Test Nomad creation
   shell:
     cmd: nomad job run -address=http://{{ compute_ip }}:4646 -token {{ nomad_global_token.stdout }} /nomad/example.hcl
+  when: inventory_hostname == compute_ip
   delegate_to: localhost
