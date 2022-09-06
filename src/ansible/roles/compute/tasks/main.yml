@@ -4,6 +4,7 @@
   apt:
     name:
       - python3-pip
+      - keepalived
 
 - name: Install Hashi-Up
   copy:
@@ -103,6 +104,74 @@
   copy:
     src: "/etc/hashicorp/nomad.token"
     dest: "/etc/hashicorp/nomad.token"
+
+# TODO: Split to separate file
+
+- name: Get default network interface
+  shell:
+    cmd: ip route | grep 'default via' | awk '{print $5}'
+  register: default_net
+
+- name: Check for keepalived config
+  stat:
+    path: /etc/keepalived/keepalived.conf
+  register: keepalived_config
+
+- name: Generate random keepalived password
+  shell:
+    cmd: cat /proc/sys/kernel/random/uuid | awk '{printf "auth_pass %s", $1}' > /etc/keepalived/keepalived.conf
+  when: keepalived_config.stat.exists == false
+
+- name: Read existing keepalived password
+  shell:
+    cmd: cat /etc/keepalived/keepalived.conf | grep auth_pass | awk '{print $2}'
+  register: keepalived_pass
+
+- name: Create keepalived configuration
+  copy:
+    dest: "/etc/keepalived/keepalived.conf"
+    content: |
+      global_defs {
+        notification_email {
+          sysadmin@home.lab
+        }
+        notification_email_from edith01@home.lab
+        smtp_server localhost
+        smtp_connect_timeout 30
+      }
+
+      vrrp_instance VI_1 {
+          {% if inventory_hostname == compute_ip -%}
+          state MASTER
+          {% else -%}
+          state BACKUP
+          {% endif %}
+          interface {{ default_net.stdout }}
+          virtual_router_id {{ ansible_play_batch.index(inventory_hostname) + 1 }}
+          priority {{ ansible_play_batch.index(inventory_hostname) + 1 }}
+          advert_int 1
+          authentication {
+              auth_type PASS
+              auth_pass {{ keepalived_pass.stdout }}
+          }
+          virtual_ipaddress {
+              {{ load_balance_ip }}
+          }
+      }
+  register: keepalived_config_content
+
+- name: Enable keepalived
+  ansible.builtin.systemd:
+    name: keepalived
+    state: started
+    enabled: yes
+  when: keepalived_config_content.changed
+
+- name: Restart keepalived
+  ansible.builtin.systemd:
+    name: keepalived
+    state: restarted
+  when: keepalived_config_content.changed
 
 # TODO: Split to separate role
 
