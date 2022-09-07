@@ -25,3 +25,4 @@
   delegate_to: localhost
   with_items:
     - /nomad/example.hcl
+    - /nomad/nginx.hcl
