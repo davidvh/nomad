@@ -21,6 +21,13 @@ job "docs" {
   group "webs" {
     count = 1
 
+    volume "example-seaweedfs-volume" {
+      type            = "csi"
+      source          = "example-seaweedfs-volume"
+      access_mode     = "multi-node-multi-writer"
+      attachment_mode = "file-system"
+    }
+
     network {
       # This requests a dynamic port named "http". This will
       # be something like "46283", but we refer to it via the
@@ -45,12 +52,6 @@ job "docs" {
       }
     }
 
-    ephemeral_disk {
-      migrate = true
-      size    = 300
-      sticky  = true
-    }
-
     # Create an individual task (unit of work). This particular
     # task utilizes a Docker container to front a web application.
     task "frontend" {
@@ -60,14 +61,21 @@ job "docs" {
 
       # Configuration is specific to each driver.
       config {
-        image = "linuxserver/heimdall"
+        image = "linuxserver/heimdall:2.4.13"
         ports = ["http"]
       }
 
       # It is possible to set environment variables which will be
       # available to the task when it runs.
       env {
-        DB_HOST = "db01.example.com"
+        PUID = "1000"
+        PGID = "1000"
+        TZ = "US/Pacific"
+      }
+
+      volume_mount {
+        volume = "example-seaweedfs-volume"
+        destination = "/config"
       }
 
       # Specify the maximum resources required to run the task,

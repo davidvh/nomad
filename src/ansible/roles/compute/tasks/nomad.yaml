@@ -59,7 +59,7 @@
     hashi-up nomad install
     --local
     --bootstrap-expect {{ ansible_play_batch | length }}
-    --server --client --acl
+    --server --acl
 
 # TODO Create policy and token for nomad: https://www.consul.io/commands/acl/token
 - name: Configure nomad to connect to consul
@@ -71,11 +71,28 @@
       }
   register: nomad_acl_token
 
+- name: Configure nomad client
+  copy:
+    dest: "/etc/nomad.d/config/client.hcl"
+    content: |
+      client {
+        enabled = true
+      }
+      plugin "docker" {
+        config {
+          allow_privileged = true
+          volumes {
+            enabled = true
+          }
+        }
+      }
+  register: nomad_client
+
 - name: Restart nomad
   ansible.builtin.systemd:
     name: nomad
     state: restarted
-  when: nomad_acl_token.changed
+  when: nomad_acl_token.changed or nomad_client.changed
 
 - name: Initialize nomad ACL
   shell:
@@ -98,3 +115,13 @@
   copy:
     src: "/etc/hashicorp/nomad.token"
     dest: "/etc/hashicorp/nomad.token"
+
+- name: Read Nomad ACL
+  shell:
+    cmd: cat /etc/hashicorp/nomad.token | grep 'Secret ID' | awk '{print $4 }'
+  register: nomad_global_token
+
+- name: Configure nomad memory overallocation
+  shell:
+    cmd: nomad operator scheduler set-config -token {{ nomad_global_token.stdout }} -memory-oversubscription=true
+  when: inventory_hostname == compute_ip

@@ -6,7 +6,6 @@
       - python3-pip
       - keepalived
 
-# TODO: Split to separate file
 - name: Load split files
   include_tasks: "{{ item }}"
   with_items:
@@ -18,11 +17,30 @@
     cmd: cat /etc/hashicorp/nomad.token | grep 'Secret ID' | awk '{print $4 }'
   register: nomad_global_token
 
-- name: Start Nomad jobs
+- name: Start Nomad Infrastructure jobs
+  shell:
+    cmd: nomad job run -address=http://{{ compute_ip }}:4646 -token {{ nomad_global_token.stdout }} {{ item }}
+  when: inventory_hostname == compute_ip
+  delegate_to: localhost
+  with_items:
+    - /nomad/nginx.hcl
+    - /nomad/seaweedfs-volumes.hcl
+    - /nomad/seaweedfs.hcl
+    - /nomad/seaweedfs-filer.hcl
+    - /nomad/seaweedfs-csi.hcl
+
+- name: Create Nomad CSI volumes
+  shell:
+    cmd: nomad volume create -address=http://{{ compute_ip }}:4646 -token {{ nomad_global_token.stdout }} {{ item }}
+  when: inventory_hostname == compute_ip
+  delegate_to: localhost
+  with_items:
+    - /nomad/example-volume.hcl
+
+- name: Start Nomad Service jobs
   shell:
     cmd: nomad job run -address=http://{{ compute_ip }}:4646 -token {{ nomad_global_token.stdout }} {{ item }}
   when: inventory_hostname == compute_ip
   delegate_to: localhost
   with_items:
     - /nomad/example.hcl
-    - /nomad/nginx.hcl

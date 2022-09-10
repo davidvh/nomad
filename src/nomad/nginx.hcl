@@ -10,16 +10,22 @@ job "nginx" {
       port "https" {
         static = 443
       }
+      port "seaweedfs_master_http" {
+        static = 9333
+      }
+      port "seaweedfs_master_grpc" {
+        static = 19333
+      }
     }
 
     task "nginx" {
       driver = "docker"
 
       config {
-        image = "nginx"
+        image = "nginx:1.22.0"
 
         network_mode = "host"
-        ports = ["http", "https"]
+        ports = ["http", "https", "seaweedfs_master_http", "seaweedfs_master_grpc"]
 
         volumes = [
           "local:/etc/nginx/conf.d",
@@ -57,7 +63,7 @@ EOF
 
       template {
         data = <<EOF
-upstream backend {
+upstream example-backend {
 {{ range service "example" }}
   server {{ .Address }}:{{ .Port }};
 {{ else }}server 127.0.0.1:65535; # force a 502
@@ -65,19 +71,57 @@ upstream backend {
 }
 
 server {
-   listen 80;
+  listen 80;
+  include conf.d/include/server.conf;
 
-   include conf.d/include/server.conf;
-
-   location / {
+  location / {
     include conf.d/include/location.conf;
-
-      proxy_pass http://backend;
+    proxy_pass http://example-backend;
    }
 }
 EOF
 
-        destination   = "local/default.conf"
+        destination   = "local/example.conf"
+        change_mode   = "signal"
+        change_signal = "SIGHUP"
+      }
+
+      template {
+        data = <<EOF
+upstream seaweedfs-master-backend {
+{{ range service "seaweedfs-master" }}
+  server {{ .Address }}:{{ .Port }};
+{{ else }}server 127.0.0.1:65535; # force a 502
+{{ end }}
+}
+
+upstream seaweedfs-master-grpc {
+{{ range service "seaweedfs-master-grpc" }}
+  server {{ .Address }}:{{ .Port }};
+{{ else }}server 127.0.0.1:65535; # force a 502
+{{ end }}
+}
+
+server {
+  listen 9333;
+  include conf.d/include/server.conf;
+
+  location / {
+    include conf.d/include/location.conf;
+    proxy_pass http://seaweedfs-master-backend;
+   }
+}
+
+server {
+  listen 19333 http2;
+
+  location / {
+    grpc_pass grpc://seaweedfs-master-grpc;
+   }
+}
+EOF
+
+        destination   = "local/seaweedfs-master.conf"
         change_mode   = "signal"
         change_signal = "SIGHUP"
       }
