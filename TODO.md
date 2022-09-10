@@ -3,7 +3,7 @@
 1. [ ] Create Vault cluster
 1. [ ] Create SeaweedFS cluster
     - https://github.com/seaweedfs/seaweedfs-csi-driver/tree/master/deploy/nomad
-1. [ ] Configure keepalived
+1. [X] Configure keepalived
     - https://keepalived.readthedocs.io/en/latest/installing_keepalived.html
     - https://www.redhat.com/sysadmin/keepalived-basics
 1. [ ] Deploy metrics monitoring
