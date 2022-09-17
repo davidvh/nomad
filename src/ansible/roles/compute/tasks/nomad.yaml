@@ -121,6 +121,14 @@
     cmd: cat /etc/hashicorp/nomad.token | grep 'Secret ID' | awk '{print $4 }'
   register: nomad_global_token
 
+- name: Confirm nomad connection
+  shell:
+    cmd: nomad node status -token {{ nomad_global_token.stdout }}
+  register: nomad_check
+  until: nomad_check.rc == 0
+  retries: 6
+  delay: 10
+
 - name: Configure nomad memory overallocation
   shell:
     cmd: nomad operator scheduler set-config -token {{ nomad_global_token.stdout }} -memory-oversubscription=true

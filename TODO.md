@@ -17,6 +17,7 @@
     - http://plugins.drone.io/loq9/drone-nomad/
 1. [ ] Install authentication services
     - https://github.com/nitnelave/lldap/
+    - https://authp.github.io/
     - https://github.com/authp/authp.github.io/blob/main/assets/conf/ldap/Caddyfile
     - https://github.com/osixia/docker-openldap
     - https://hub.docker.com/r/389ds/dirsrv

@@ -1,49 +1,52 @@
+# WWW naster: http://seaweedfs-master.service.consul:9333/
+# WWW filer: http://seaweedfs-filer.service.consul:8888/
+
 job "seaweedfs-csi" {
   datacenters = ["dc1"]
   type = "system"
 
-  update {
-    max_parallel  = 1
-    stagger       = "60s"
-  }
-
-  group "nodes" {
-  
-    ephemeral_disk {
-      migrate = false
-      size    = 10240
-      sticky  = false
+  group "mounts" {
+    restart {
+      attempts = 10
+      interval = "5m"
+      delay = "25s"
+      mode = "delay"
     }
-      
-    task "plugin" {
+    
+    update {
+      max_parallel      = 1
+      stagger           = "2m"
+    }
+
+    task "seaweedfs-mount" {
       driver = "docker"
-
+        
       config {
-        image = "chrislusf/seaweedfs-csi-driver:latest"
-        force_pull = "true"
-        network_mode = "host"
-
+        image = "chrislusf/seaweedfs:3.26_large_disk"
         args = [
-          "--endpoint=unix://csi/csi.sock",
+          "mount",
           "--filer=192.168.50.4:8888",
-          "--nodeid=${node.unique.name}",
-          "--cacheCapacityMB=256",
-          "--cacheDir=${NOMAD_TASK_DIR}/cache_dir",
+          "--dir=/mounted/fast",
+          "--filer.path=/",
         ]
+        
+        mount {
+          type = "bind"
+          target = "/mounted"
+          source = "/mnt/cluster"
+          readonly = false
+          bind_options {
+            propagation = "shared"
+          }
+        }
 
-        privileged = true
-      }
-
-      csi_plugin {
-        id        = "seaweedfs"
-        type      = "monolith"
-        mount_dir = "/csi"
+         privileged = true
       }
 
       resources {
-        cpu    = 512
+        cpu = 512
         memory = 512
-        memory_max = 3072 # W need to have memory oversubscription enabled
+        memory_max = 2048 # W need to have memory oversubscription enabled
       }
     }
   }
